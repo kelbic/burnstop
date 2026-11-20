@@ -215,7 +215,7 @@
   // Waitlist endpoint: the Google Apps Script web app URL ("https://script.google.com/macros/s/.../exec"),
   // which answers {"ok": true} as JSON. While it is empty the form tells the visitor it is not
   // configured; it never fakes a success.
-  const WAITLIST_ENDPOINT = "";
+  const WAITLIST_ENDPOINT = "https://script.google.com/macros/s/AKfycbzJYoLyQMxIQ89o9-z9uNkenDAIft7rTB-ItYV8xPIhw69jNGqsrK8EKgsdzbVqAQm-3g/exec";
 
   // URL-encoded body + this Content-Type keep the POST a CORS "simple" request (no preflight).
   function encodePairs(pairs) {
