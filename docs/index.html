@@ -87,6 +87,7 @@
   .note.err { color: var(--accent); }
   @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .nav-links .hide-sm { display: none; }
     .code { font-size: 12.5px; } }
+  .hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
 </style>
 </head>
 <body>
@@ -199,6 +200,9 @@
     </select>
     <input type="hidden" name="source" id="source">
     <input type="hidden" name="plan" id="plan">
+    <input type="hidden" name="product" value="burnstop">
+    <div class="hp" aria-hidden="true"><label for="hp_note">Leave this field empty</label>
+      <input id="hp_note" name="hp_note" type="text" tabindex="-1" autocomplete="off"></div>
     <div class="row">
       <button class="btn" type="button" id="cancel">Cancel</button>
       <button class="btn primary" type="submit" id="submit">Request access</button>
@@ -208,10 +212,15 @@
 </dialog>
 
 <script>
-  // Paste your form endpoint here before publishing, e.g. a Formspree form URL
-  // ("https://formspree.io/f/xxxxxxx") or a Tally/Getform endpoint that accepts POSTed form data.
-  // While it is empty the form tells the visitor it is not configured; it never fakes a success.
-  const WAITLIST_ENDPOINT = "https://formspree.io/f/mbgoajvk";
+  // Waitlist endpoint: the Google Apps Script web app URL ("https://script.google.com/macros/s/.../exec"),
+  // which answers {"ok": true} as JSON. While it is empty the form tells the visitor it is not
+  // configured; it never fakes a success.
+  const WAITLIST_ENDPOINT = "";
+
+  // URL-encoded body + this Content-Type keep the POST a CORS "simple" request (no preflight).
+  function encodePairs(pairs) {
+    return pairs.map((kv) => encodeURIComponent(kv[0]) + "=" + encodeURIComponent(String(kv[1]))).join("&");
+  }
 
   const params = new URLSearchParams(location.search);
   const source = params.get("ref") || params.get("utm_source") ||
@@ -239,9 +248,11 @@
     const submit = document.getElementById("submit");
     submit.disabled = true;
     try {
-      const res = await fetch(WAITLIST_ENDPOINT, { method: "POST", body: new FormData(form),
-                                                   headers: { "Accept": "application/json" } });
-      if (!res.ok) throw new Error("HTTP " + res.status);
+      const res = await fetch(WAITLIST_ENDPOINT, { method: "POST",
+        body: encodePairs(Array.from(new FormData(form).entries())),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" } });
+      const reply = await res.json().catch(() => null);
+      if (!res.ok || !reply || reply.ok !== true) throw new Error((reply && reply.error) || "HTTP " + res.status);
       note.className = "note ok";
       note.textContent = "You're on the list. We'll email you when your batch opens.";
       form.reset();
