@@ -1,0 +1,54 @@
+# burnstop.example.yaml - copy to burnstop.yaml (or run `burnstop init`).
+# Any rule can be disabled with null. Unknown keys are rejected, so a typo can't silently
+# disable a limit.
+
+listen:
+  host: 127.0.0.1
+  port: 8787
+
+upstreams:                       # override for tests / self-hosted gateways
+  anthropic: https://api.anthropic.com
+  openai: https://api.openai.com
+
+limits:                          # USD, sliding windows over the request history
+  max_usd_per_10m: 2.00          # sudden burn
+  max_usd_per_hour: 5.00
+  max_usd_per_day: 20.00
+  max_usd_per_session: null      # since start or `burnstop reset --clear-session`
+
+loop_guard:
+  max_identical_tool_calls: 4    # same tool + same arguments in N responses in a row
+  max_consecutive_errors: 6      # upstream 4xx/5xx in a row...
+  error_window_minutes: 5        # ...each within this many minutes of the previous one
+  max_requests_per_minute: 30    # protects against a `while True` without sleeps
+
+lockout:
+  trip_status_code: 402          # official SDKs auto-retry 429/5xx; 402 makes them stop
+  cooldown_minutes: null         # null = stay TRIPPED until `burnstop reset` (recommended)
+
+state_file: ~/.burnstop/state.json
+history_file: ~/.burnstop/history.jsonl
+
+# OpenAI only reports usage on streamed chat completions when asked. burnstop adds
+# stream_options.include_usage and retries without it if the upstream rejects the field.
+inject_openai_stream_usage: true
+
+alerts: []                       # one message per trip, never one per blocked request
+#  - type: telegram
+#    bot_token: "123456789:AA..."
+#    chat_id: "123456789"
+#  - type: slack
+#    url: https://hooks.slack.com/services/XXX/YYY/ZZZ
+#  - type: discord
+#    url: https://discord.com/api/webhooks/XXX/YYY
+#  - type: generic                # POSTs {"event": "burnstop.tripped", "reason", "spend_usd", ...}
+#    url: https://example.com/burnstop-webhook
+
+kill_switch:                     # runs once, on the ARMED -> TRIPPED transition
+  kill_pid_file: null            # e.g. ~/my-agent.pid  -> SIGTERM that process
+  on_trip_cmd: null              # e.g. "systemctl --user stop my-agent.service"
+
+pricing:                         # USD per 1M tokens; overrides the built-in table
+  models: {}
+  #  my-finetuned-model: {input: 3.00, output: 15.00, cache_read: 0.30, cache_write: 3.75}
+  unknown_model_fallback_per_1m: {input: 15.00, output: 75.00}

@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>burnstop: stop runaway AI agents</title>
+<meta name="description" content="A local circuit-breaker proxy for Anthropic and OpenAI APIs. Spend caps, loop detection and an instant 402 kill switch for autonomous agents.">
+<style>
+  :root {
+    --bg: #0b0c0f; --panel: #121318; --panel-2: #171920; --line: #23262f;
+    --text: #e7e8ec; --muted: #9a9fad; --dim: #6b7080;
+    --accent: #ff5c4d; --accent-2: #ff8a5c; --ok: #4ade80;
+    --mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans);
+    font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
+  .logo { font-family: var(--mono); font-weight: 700; letter-spacing: -0.02em; text-decoration: none; }
+  .logo span { color: var(--accent); }
+  .nav-links { display: flex; gap: 20px; font-size: 14px; color: var(--muted); }
+  .nav-links a { text-decoration: none; }
+  .nav-links a:hover { color: var(--text); }
+  .hero { padding: 64px 0 40px; text-align: center; }
+  .pill { display: inline-block; font-size: 13px; color: var(--muted); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px 12px; margin-bottom: 24px; }
+  h1 { font-size: clamp(32px, 6vw, 56px); line-height: 1.08; letter-spacing: -0.03em; margin: 0 auto 20px;
+    max-width: 820px; }
+  h1 em { font-style: normal; background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { color: var(--muted); font-size: 18px; max-width: 640px; margin: 0 auto 32px; }
+  .code { position: relative; text-align: left; max-width: 620px; margin: 0 auto 28px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; font-family: var(--mono);
+    font-size: 14px; overflow-x: auto; }
+  .code .c { color: var(--dim); }
+  .code .p { color: var(--accent-2); user-select: none; }
+  .copy { position: absolute; top: 10px; right: 10px; font-size: 12px; color: var(--muted);
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+  .copy:hover { color: var(--text); }
+  .ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; padding: 11px 18px;
+    font-size: 15px; font-weight: 600; text-decoration: none; cursor: pointer; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); font-family: var(--sans); }
+  .btn:hover { border-color: #3a3e4b; }
+  .btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn.primary:hover { opacity: 0.9; }
+  .demo { margin: 48px auto 0; max-width: 960px; border: 1px solid var(--line); border-radius: 14px;
+    overflow: hidden; background: #272822; }
+  .demo img { display: block; width: 100%; height: auto; }
+  section { padding: 72px 0 0; }
+  h2 { font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.02em; margin: 0 0 12px; }
+  .lead { color: var(--muted); max-width: 640px; margin: 0 0 32px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+  .card h3 { margin: 0 0 8px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  .card .k { font-family: var(--mono); font-size: 12px; color: var(--accent-2); margin-bottom: 12px; display: block; }
+  .tier { display: flex; flex-direction: column; }
+  .tier.featured { border-color: #4a2a26; background: linear-gradient(180deg, #1a1312, var(--panel)); }
+  .price { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; margin: 6px 0 2px; }
+  .price small { font-size: 15px; font-weight: 500; color: var(--muted); }
+  .tag { font-size: 12px; color: var(--accent-2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  .tier ul { list-style: none; padding: 0; margin: 16px 0 22px; color: var(--muted); font-size: 15px; flex: 1; }
+  .tier li { padding: 6px 0 6px 22px; position: relative; }
+  .tier li::before { content: ""; position: absolute; left: 2px; top: 13px; width: 8px; height: 8px;
+    border-radius: 2px; background: var(--ok); opacity: 0.8; }
+  .tier .btn { justify-content: center; width: 100%; }
+  footer { padding: 72px 0 40px; color: var(--dim); font-size: 14px; display: flex; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px; }
+  /* modal */
+  dialog { width: min(480px, calc(100vw - 32px)); background: var(--panel); color: var(--text);
+    border: 1px solid var(--line); border-radius: 16px; padding: 28px; }
+  dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+  dialog h3 { margin: 0 0 8px; font-size: 20px; }
+  dialog p { margin: 0 0 20px; color: var(--muted); font-size: 15px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+  input, select { width: 100%; font: inherit; font-size: 15px; color: var(--text); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  input:focus, select:focus { outline: 2px solid #5b3a35; border-color: #5b3a35; }
+  .row { display: flex; gap: 10px; margin-top: 22px; }
+  .row .btn { flex: 1; justify-content: center; }
+  .note { font-size: 13px; color: var(--dim); margin-top: 14px; min-height: 18px; }
+  .note.ok { color: var(--ok); }
+  .note.err { color: var(--accent); }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .nav-links .hide-sm { display: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a class="logo" href="#">burn<span>stop</span></a>
+    <div class="nav-links">
+      <a class="hide-sm" href="#how">How it works</a>
+      <a href="#pricing">Pricing</a>
+      <a href="https://github.com/kelbic/burnstop">GitHub</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="pill">Open source &middot; MIT &middot; runs on your machine</div>
+    <h1>Stop runaway AI agents <em>before they burn your API key overnight</em></h1>
+    <p class="sub">burnstop is a local circuit-breaker proxy for the Anthropic and OpenAI APIs. It meters every
+      request, detects loops, and cuts the agent off with an instant 402 when a rule trips.</p>
+    <div class="code" id="snippet"><button class="copy" type="button" data-copy>Copy</button><span class="c"># terminal 1</span>
+<span class="p">$ </span>pip install git+https://github.com/kelbic/burnstop &amp;&amp; burnstop init &amp;&amp; burnstop start
+<span class="c"># terminal 2: your agent, unchanged</span>
+<span class="p">$ </span>export ANTHROPIC_BASE_URL=http://127.0.0.1:8787</div>
+    <div class="ctas">
+      <a class="btn primary" href="https://github.com/kelbic/burnstop">View on GitHub</a>
+      <button class="btn" type="button" data-plan="waitlist">Join the Cloud waitlist</button>
+    </div>
+    <div class="demo"><img src="demo.gif" alt="A coding agent loops on a failing test; burnstop trips after the 4th identical tool call and returns HTTP 402" loading="lazy" width="1026" height="651"></div>
+  </header>
+
+  <section id="how">
+    <h2>How it works</h2>
+    <p class="lead">One local process between your agent and the provider. Streams pass through in real time;
+      usage and tool calls are parsed on the fly.</p>
+    <div class="grid">
+      <div class="card"><span class="k">max_usd_per_10m: 2.00</span>
+        <h3>Real-time spend caps</h3>
+        <p>Sliding 10-minute, hourly and daily budgets computed from each response's usage, including
+          prompt-cache reads and writes. No waiting for a billing dashboard.</p></div>
+      <div class="card"><span class="k">max_identical_tool_calls: 4</span>
+        <h3>Infinite-loop detection</h3>
+        <p>Trips when the agent requests the same tool with the same arguments again and again, hits a wall
+          of upstream errors, or fires requests in a tight loop.</p></div>
+      <div class="card"><span class="k">HTTP 402 + webhook</span>
+        <h3>Instant kill switch</h3>
+        <p>The next request gets a provider-shaped 402 that SDKs do not retry. One alert to Telegram, Slack
+          or Discord, an optional SIGTERM, and a lockout that survives restarts.</p></div>
+    </div>
+  </section>
+
+  <section id="pricing">
+    <h2>Pricing</h2>
+    <p class="lead">The CLI is free forever. Cloud Pro adds the things a local process cannot do for itself.</p>
+    <div class="grid">
+      <div class="card tier">
+        <div class="tag">Open source CLI</div>
+        <div class="price">$0 <small>forever</small></div>
+        <ul>
+          <li>Local proxy for Anthropic and OpenAI</li>
+          <li>Spend caps per 10 min, hour, day, session</li>
+          <li>Loop guard and error-storm guard</li>
+          <li>Local webhooks and kill switch</li>
+        </ul>
+        <a class="btn" href="https://github.com/kelbic/burnstop">Get the CLI</a>
+      </div>
+      <div class="card tier featured">
+        <div class="tag">Burnstop Cloud Pro &middot; early access</div>
+        <div class="price">$19 <small>/ month</small></div>
+        <ul>
+          <li>External dead-man switch: alerts if your VPS hangs or OOMs</li>
+          <li>Multi-VPS fleet dashboard</li>
+          <li>Remote one-click kill switch from your phone</li>
+          <li>SMS, Slack and Telegram escalation</li>
+        </ul>
+        <button class="btn primary" type="button" data-plan="cloud_pro">Start Cloud Pro Trial ($19/mo)</button>
+      </div>
+      <div class="card tier">
+        <div class="tag">Team &middot; early access</div>
+        <div class="price">$49 <small>/ month</small></div>
+        <ul>
+          <li>Up to 15 VPS hosts</li>
+          <li>Per-agent budgets</li>
+          <li>Shared team alerts</li>
+        </ul>
+        <button class="btn" type="button" data-plan="team">Join Waitlist</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>burnstop &middot; MIT licensed</span>
+    <a href="https://github.com/kelbic/burnstop">github.com/kelbic/burnstop</a>
+  </footer>
+</div>
+
+<dialog id="waitlist">
+  <form id="waitlist-form" method="post">
+    <h3>Get early access</h3>
+    <p>Cloud Pro is opening in batches. Leave your email to get early access + 50% lifetime founder discount.</p>
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@company.com">
+    <label for="spend">Monthly API spend</label>
+    <select id="spend" name="monthly_api_spend" required>
+      <option value="" disabled selected>Select a range</option>
+      <option>&lt;$50</option><option>$50&ndash;$200</option><option>$200&ndash;$1,000</option><option>$1,000+</option>
+    </select>
+    <label for="stack">Agent stack (optional)</label>
+    <select id="stack" name="agent_stack">
+      <option value="">Prefer not to say</option>
+      <option>Claude Code</option><option>OpenAI / Codex</option><option>Custom Python</option><option>Other</option>
+    </select>
+    <input type="hidden" name="source" id="source">
+    <input type="hidden" name="plan" id="plan">
+    <div class="row">
+      <button class="btn" type="button" id="cancel">Cancel</button>
+      <button class="btn primary" type="submit" id="submit">Request access</button>
+    </div>
+    <div class="note" id="note" role="status"></div>
+  </form>
+</dialog>
+
+<script>
+  // Paste your form endpoint here before publishing, e.g. a Formspree form URL
+  // ("https://formspree.io/f/xxxxxxx") or a Tally/Getform endpoint that accepts POSTed form data.
+  // While it is empty the form tells the visitor it is not configured; it never fakes a success.
+  const WAITLIST_ENDPOINT = "";
+
+  const params = new URLSearchParams(location.search);
+  const source = params.get("ref") || params.get("utm_source") ||
+    (document.referrer ? new URL(document.referrer).hostname : "direct");
+  document.getElementById("source").value = source.slice(0, 64);
+
+  const dialog = document.getElementById("waitlist");
+  const form = document.getElementById("waitlist-form");
+  const note = document.getElementById("note");
+  document.querySelectorAll("[data-plan]").forEach((el) => el.addEventListener("click", () => {
+    document.getElementById("plan").value = el.dataset.plan;
+    note.textContent = ""; note.className = "note";
+    dialog.showModal();
+  }));
+  document.getElementById("cancel").addEventListener("click", () => dialog.close());
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!WAITLIST_ENDPOINT) {
+      console.warn("burnstop: WAITLIST_ENDPOINT is not set in docs/index.html");
+      note.className = "note err";
+      note.textContent = "The waitlist is not connected yet. Please star the repo on GitHub and check back soon.";
+      return;
+    }
+    const submit = document.getElementById("submit");
+    submit.disabled = true;
+    try {
+      const res = await fetch(WAITLIST_ENDPOINT, { method: "POST", body: new FormData(form),
+                                                   headers: { "Accept": "application/json" } });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      note.className = "note ok";
+      note.textContent = "You're on the list. We'll email you when your batch opens.";
+      form.reset();
+    } catch (err) {
+      note.className = "note err";
+      note.textContent = "Something went wrong. Please try again in a minute.";
+    } finally {
+      submit.disabled = false;
+    }
+  });
+
+  document.querySelector("[data-copy]").addEventListener("click", async (e) => {
+    const text = "pip install git+https://github.com/kelbic/burnstop && burnstop init && burnstop start\n" +
+                 "export ANTHROPIC_BASE_URL=http://127.0.0.1:8787";
+    try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied"; }
+    catch { e.target.textContent = "Select to copy"; }
+    setTimeout(() => { e.target.textContent = "Copy"; }, 1500);
+  });
+</script>
+</body>
+</html>
