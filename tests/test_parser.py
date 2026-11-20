@@ -112,5 +112,10 @@ def test_pricing_prefix_fallback_and_cache_math():
         "cache_creation": {"ephemeral_1h_input_tokens": 1_000_000}}}).encode())
     # 4 input + 20 output + 0.20 cache read + 1h write at 2x input (8)
     assert p.cost(u) == pytest.approx(32.20)
+    # newer OpenAI models must not inherit cheaper base-model prices through the prefix
+    assert p.lookup("gpt-5.5")[0].output == 30 and p.lookup("gpt-5-pro")[0].output == 120
+    assert p.lookup("o3-pro-2025-06-10")[0].input == 20 and p.lookup("gpt-5-2025-08-07")[0].input == 1.25
+    assert p.lookup("gpt-5.9-preview") == (p.fallback, False)      # unknown dotted version: fallback
     custom = Pricing({"my-model": {"input": 1, "output": 2}})
     assert custom.lookup("my-model-v2")[0].output == 2
+    assert custom.lookup("my-model2")[1] is False                   # no match across a name boundary

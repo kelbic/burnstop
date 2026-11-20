@@ -1,8 +1,9 @@
 """Per-1M-token prices (USD) and request cost calculation.
 
 Anthropic rows: Anthropic API pricing as of 2026-11 (cache_write = 5-minute TTL write; 1-hour
-TTL writes are billed at 2x input). OpenAI rows: OpenAI API pricing as of 2026-11. Provider
-prices change - verify them and override or add models under `pricing.models` in burnstop.yaml.
+TTL writes are billed at 2x input). OpenAI rows: developers.openai.com/api/docs/pricing, checked
+2026-11-20. Long-context tiers (OpenAI >272K, Haiku 5.5 >100K input) cost more and are not modeled.
+Prices change - verify them and override or add models under `pricing.models` in burnstop.yaml.
 """
 from __future__ import annotations
 
@@ -39,6 +40,16 @@ BUILTIN: dict[str, Price] = {
     "claude-haiku-5-5": _p(0.10, 0.50, 0.01),
     "claude-haiku-4-5": _p(1, 5, 0.10), "claude-3-5-haiku": _p(0.80, 4, 0.08),
     # OpenAI (no separate cache-write charge: cached input is reported as cached_tokens)
+    "gpt-6.2-astra": _p(8, 40, 0.40, 8), "gpt-6.2-sol": _p(2, 10, 0.10, 2),
+    "gpt-6.1-sol": _p(2, 10, 0.10, 2), "gpt-6.1-terra": _p(1, 5, 0.05, 1),
+    "gpt-6-astra": _p(10, 50, 1, 10), "gpt-6-sol": _p(2, 10, 0.20, 2), "gpt-6-luna": _p(0.10, 0.50, 0.01, 0.10),
+    "gpt-5.6-sol": _p(4, 20, 0.40, 4), "gpt-5.6-terra": _p(2, 12, 0.20, 2), "gpt-5.6-luna": _p(0.20, 1.20, 0.02, 0.20),
+    "gpt-5.5-pro": _p(30, 180, 30, 30), "gpt-5.5": _p(5, 30, 0.50, 5),
+    "gpt-5.4-pro": _p(30, 180, 30, 30), "gpt-5.4-mini": _p(0.75, 4.50, 0.075, 0.75),
+    "gpt-5.4-nano": _p(0.20, 1.25, 0.02, 0.20), "gpt-5.4": _p(2.50, 15, 0.25, 2.50),
+    "gpt-5.3-codex": _p(1.75, 14, 0.175, 1.75), "gpt-5.2-pro": _p(21, 168, 21, 21),
+    "gpt-5.2": _p(1.75, 14, 0.175, 1.75), "gpt-5.1": _p(1.25, 10, 0.125, 1.25),
+    "gpt-5-pro": _p(15, 120, 15, 15), "o3-pro": _p(20, 80, 20, 20),
     "gpt-5-nano": _p(0.05, 0.40, 0.005, 0.05), "gpt-5-mini": _p(0.25, 2, 0.025, 0.25),
     "gpt-5": _p(1.25, 10, 0.125, 1.25),
     "gpt-4.1-nano": _p(0.10, 0.40, 0.025, 0.10), "gpt-4.1-mini": _p(0.40, 1.60, 0.10, 0.40),
@@ -67,7 +78,9 @@ class Pricing:
 
     def lookup(self, model: str) -> tuple[Price, bool]:
         name = (model or "").lower().rsplit("/", 1)[-1]  # "anthropic/claude-..." routers
-        best = max((k for k in self.table if name.startswith(k)), key=len, default=None)
+        # prefix must end at a version boundary: "gpt-5" prices "gpt-5-2025-08-07", not "gpt-5.7"
+        best = max((k for k in self.table if name.startswith(k)
+                    and name[len(k):len(k) + 1] in ("", "-", "@", ":", "_")), key=len, default=None)
         if best is not None:
             return self.table[best], True
         if name not in self._warned:

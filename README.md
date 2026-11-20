@@ -1,5 +1,7 @@
 # burnstop
 
+[Project page & Cloud Pro waitlist](https://kelbic.github.io/burnstop/?ref=github)
+
 **A local circuit breaker for autonomous AI agents.** burnstop sits between your agent and the
 Anthropic / OpenAI API, tracks spend per request in real time, and cuts the agent off with an
 HTTP 402 the moment it starts looping or burning money: before the overnight run empties your key.
@@ -108,7 +110,7 @@ burnstop tail [-f]             request history (JSONL)
 | Price | $0, MIT | $19/mo |
 
 Cloud Pro is opening in batches. Join the waitlist on the
-[project page](https://kelbic.github.io/burnstop/).
+[project page](https://kelbic.github.io/burnstop/?ref=github).
 
 ## Development
 
