@@ -34,7 +34,7 @@
   .sub { color: var(--muted); font-size: 18px; max-width: 640px; margin: 0 auto 32px; }
   .code { position: relative; text-align: left; max-width: 620px; margin: 0 auto 28px; background: var(--panel);
     border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; font-family: var(--mono);
-    font-size: 14px; overflow-x: auto; }
+    font-size: 14px; overflow-x: auto; white-space: pre; padding-right: 72px; }
   .code .c { color: var(--dim); }
   .code .p { color: var(--accent-2); user-select: none; }
   .copy { position: absolute; top: 10px; right: 10px; font-size: 12px; color: var(--muted);
@@ -85,7 +85,8 @@
   .note { font-size: 13px; color: var(--dim); margin-top: 14px; min-height: 18px; }
   .note.ok { color: var(--ok); }
   .note.err { color: var(--accent); }
-  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .nav-links .hide-sm { display: none; } }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } .nav-links .hide-sm { display: none; }
+    .code { font-size: 12.5px; } }
 </style>
 </head>
 <body>
